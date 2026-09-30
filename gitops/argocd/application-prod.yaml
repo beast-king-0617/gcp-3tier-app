@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: myapp-prod
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: myapp
+    environment: prod
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: myapp
+  source:
+    repoURL: REPLACE_GIT_REPO_URL
+    # Prefer release tags or main with manual sync for ultra-strict prod;
+    # automated sync is enabled with GitHub Environment approvals as the control gate.
+    targetRevision: main
+    path: gitops/environments/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

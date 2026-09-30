@@ -1,0 +1,79 @@
+project_id  = "myapp-dev"
+region      = "us-central1"
+app_name    = "myapp"
+environment = "dev"
+
+# CIDRs from docs/phase-1/cidr-plan.md — do not change without updating that doc.
+subnet_gke_cidr          = "10.10.0.0/20"
+subnet_gke_pods_cidr     = "10.10.16.0/18"
+subnet_gke_services_cidr = "10.10.80.0/20"
+subnet_mgmt_cidr         = "10.10.96.0/24"
+psa_address              = "10.10.100.0"
+psa_prefix_length        = 24
+gke_master_cidr          = "172.16.0.0/28"
+
+enable_flow_logs   = true
+flow_logs_sampling = 0.5
+enable_iap_ssh     = true
+
+# GKE — add your office/VPN/CI CIDRs or kubectl will fail against the public endpoint.
+gke_release_channel                   = "REGULAR"
+gke_enable_private_endpoint           = false
+gke_enable_master_authorized_networks = true
+gke_master_authorized_networks = [
+  # { cidr_block = "203.0.113.10/32", display_name = "office" },
+]
+gke_deletion_protection = false
+
+gke_system_node_pool = {
+  machine_type = "e2-standard-2"
+  min_count    = 1
+  max_count    = 3
+  disk_size_gb = 50
+}
+
+gke_application_node_pool = {
+  machine_type = "e2-standard-2"
+  min_count    = 1
+  max_count    = 5
+  disk_size_gb = 100
+  spot         = false
+}
+
+# Cloud SQL — private IP only; password generated + stored in Secret Manager.
+cloudsql_tier                  = "db-custom-1-3840"
+cloudsql_availability_type     = "ZONAL"
+cloudsql_disk_size_gb          = 20
+cloudsql_deletion_protection   = false
+cloudsql_backup_start_time     = "03:00"
+cloudsql_maintenance_day       = 7
+cloudsql_maintenance_hour      = 3
+cloudsql_retained_backups      = 7
+cloudsql_pitr_days             = 7
+
+# Artifact Registry — images tagged with git SHA (never :latest for deploy).
+artifact_registry_keep_versions = 20
+artifact_registry_cleanup_enabled = true
+artifact_registry_vuln_scanning   = true
+
+# DNS / TLS — replace with a domain you control and delegate NS from terraform output.
+dns_domain         = "myapp.example.com"
+dns_create_zone    = true
+enable_gateway_edge = true
+# app_hostname     = null  # => dev.myapp.example.com
+
+# Argo CD — enable after GKE is healthy; set your real Git HTTPS URL.
+enable_argocd              = false
+argocd_git_repo_url        = "https://github.com/my-org/myapp-platform.git"
+argocd_git_target_revision = "develop"
+
+enable_monitoring               = true
+monitoring_notification_emails  = [] # e.g. ["sre-oncall@example.com"]
+monitoring_enable_dashboard     = true
+
+# Security — enable after GKE is up (installs ESO via Helm).
+enable_external_secrets = false
+
+labels = {
+  team = "platform"
+}

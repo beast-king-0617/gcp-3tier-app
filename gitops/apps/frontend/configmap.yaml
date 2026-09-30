@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+data:
+  # Empty = same-origin /api via Gateway. Overlays may set a full URL if needed.
+  VITE_API_BASE_URL: ""

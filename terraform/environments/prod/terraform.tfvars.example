@@ -1,0 +1,78 @@
+project_id  = "myapp-prod"
+region      = "us-central1"
+app_name    = "myapp"
+environment = "prod"
+
+subnet_gke_cidr          = "10.30.0.0/20"
+subnet_gke_pods_cidr     = "10.30.16.0/18"
+subnet_gke_services_cidr = "10.30.80.0/20"
+subnet_mgmt_cidr         = "10.30.96.0/24"
+psa_address              = "10.30.100.0"
+psa_prefix_length        = 24
+gke_master_cidr          = "172.16.0.32/28"
+
+enable_flow_logs   = true
+flow_logs_sampling = 0.25
+enable_iap_ssh     = true
+
+gke_release_channel                   = "REGULAR"
+gke_enable_private_endpoint           = false
+gke_enable_master_authorized_networks = true
+gke_master_authorized_networks = [
+  # { cidr_block = "203.0.113.10/32", display_name = "office" },
+  # { cidr_block = "198.51.100.0/24", display_name = "ci-runners" },
+]
+gke_deletion_protection = true
+
+gke_system_node_pool = {
+  machine_type = "e2-standard-4"
+  min_count    = 2
+  max_count    = 6
+  disk_size_gb = 50
+}
+
+gke_application_node_pool = {
+  machine_type = "e2-standard-4"
+  min_count    = 3
+  max_count    = 15
+  disk_size_gb = 100
+  spot         = false
+}
+
+gke_maintenance_start_time = "2025-01-05T05:00:00Z"
+gke_maintenance_end_time   = "2025-01-05T09:00:00Z"
+gke_maintenance_recurrence = "FREQ=WEEKLY;BYDAY=SU"
+
+cloudsql_tier                    = "db-custom-4-15360"
+cloudsql_availability_type       = "REGIONAL"
+cloudsql_disk_size_gb            = 100
+cloudsql_disk_autoresize_limit   = 500
+cloudsql_deletion_protection     = true
+cloudsql_backup_start_time       = "03:00"
+cloudsql_maintenance_day         = 7
+cloudsql_maintenance_hour        = 5
+cloudsql_retained_backups        = 30
+cloudsql_pitr_days               = 14
+
+artifact_registry_keep_versions   = 50
+artifact_registry_cleanup_enabled = true
+artifact_registry_vuln_scanning   = true
+
+dns_domain          = "myapp.example.com"
+dns_create_zone     = true
+enable_gateway_edge = true
+# app_hostname defaults to myapp.example.com for prod
+
+enable_argocd              = false
+argocd_git_repo_url        = "https://github.com/my-org/myapp-platform.git"
+argocd_git_target_revision = "main"
+
+enable_monitoring              = true
+monitoring_notification_emails = []
+monitoring_enable_dashboard    = true
+
+enable_external_secrets = false
+
+labels = {
+  team = "platform"
+}

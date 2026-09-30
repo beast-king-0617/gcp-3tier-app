@@ -1,0 +1,34 @@
+# GatewayClass gke-l7-global-external-managed is provided by GKE when
+# gateway_api_config.channel = CHANNEL_STANDARD (Phase 4). Do not recreate it.
+#
+# This Gateway provisions a global external Application Load Balancer.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: external-https
+  namespace: gateway-system
+  labels:
+    app.kubernetes.io/name: external-https
+  annotations:
+    # Values come from Terraform outputs (patched per environment):
+    #   networking.gke.io/addresses  = module.certificates.gateway_ip_name
+    #   networking.gke.io/certmap    = module.certificates.certificate_map_name
+    networking.gke.io/addresses: REPLACE_GATEWAY_IP_NAME
+    networking.gke.io/certmap: REPLACE_CERT_MAP_NAME
+spec:
+  gatewayClassName: gke-l7-global-external-managed
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate

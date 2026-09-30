@@ -1,0 +1,23 @@
+# Dependabot — keep Actions and deps current
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /application/backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /application/frontend
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /application/backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /application/frontend
+    schedule:
+      interval: weekly

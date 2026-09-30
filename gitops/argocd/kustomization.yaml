@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - project.yaml
+  # Applications are environment-specific; apply the matching one on each cluster,
+  # or let Terraform modules/argocd create them.
+  # - application-dev.yaml

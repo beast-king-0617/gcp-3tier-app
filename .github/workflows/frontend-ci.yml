@@ -1,0 +1,124 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - "application/frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+      - ".github/workflows/docker-build.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "application/frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+      - ".github/workflows/docker-build.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment for image push"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, stage, prod]
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-build:
+    name: Lint and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: application/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: application/frontend/package-lock.json
+
+      - name: Install
+        run: npm ci || npm install
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ""
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Container
+    needs: lint-build
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      image_name: frontend
+      context: application/frontend
+      dockerfile: application/frontend/Dockerfile
+      push: ${{ github.event_name != 'pull_request' }}
+      environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+      workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+      service_account: ${{ vars.GHA_CI_SERVICE_ACCOUNT }}
+      project_id: ${{ vars.GCP_PROJECT_ID }}
+      region: ${{ vars.GCP_REGION || 'us-central1' }}
+      repository: ${{ vars.AR_FRONTEND_REPOSITORY }}
+
+  gitops:
+    name: Update GitOps image tag
+    needs: docker
+    if: ${{ needs.docker.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch Kustomize image tag
+        env:
+          ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+          SHA: ${{ needs.docker.outputs.git_sha }}
+          FILE: gitops/environments/${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}/kustomization.yaml
+        run: |
+          set -euo pipefail
+          test -f "${FILE}"
+          python3 - <<'PY'
+          import os, pathlib, re
+          path = pathlib.Path(os.environ["FILE"])
+          sha = os.environ["SHA"]
+          lines = path.read_text().splitlines()
+          out = []
+          pending = False
+          for line in lines:
+              if "frontend" in line and ("newName:" in line or "name:" in line):
+                  pending = True
+                  out.append(line)
+                  continue
+              if pending and "newTag:" in line:
+                  indent = re.match(r"^(\s*)", line).group(1)
+                  out.append(f"{indent}newTag: {sha}")
+                  pending = False
+                  continue
+              out.append(line)
+          path.write_text("\n".join(out) + "\n")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${FILE}"
+          if git diff --staged --quiet; then
+            echo "No GitOps changes"
+            exit 0
+          fi
+          git commit -m "chore(gitops): bump frontend image to ${SHA} (${ENV})"
+          git push

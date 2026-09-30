@@ -1,0 +1,131 @@
+# Reusable workflow: build, scan, and optionally push a container image to Artifact Registry.
+name: Docker build
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: "Image name (e.g. frontend or backend)"
+        required: true
+        type: string
+      context:
+        description: "Docker build context path"
+        required: true
+        type: string
+      dockerfile:
+        description: "Dockerfile path"
+        required: true
+        type: string
+      push:
+        description: "Push image to Artifact Registry"
+        required: false
+        type: boolean
+        default: false
+      environment:
+        description: "Target environment (dev|stage|prod) for AR project/repo"
+        required: false
+        type: string
+        default: "dev"
+      workload_identity_provider:
+        description: "Full WIF provider resource name"
+        required: true
+        type: string
+      service_account:
+        description: "Google SA email to impersonate (gha-ci)"
+        required: true
+        type: string
+      project_id:
+        description: "GCP project ID hosting Artifact Registry"
+        required: true
+        type: string
+      region:
+        description: "Artifact Registry region"
+        required: false
+        type: string
+        default: "us-central1"
+      repository:
+        description: "Artifact Registry repository ID (e.g. myapp-dev-frontend)"
+        required: true
+        type: string
+    outputs:
+      image:
+        description: "Fully qualified image reference with digest or tag"
+        value: ${{ jobs.build.outputs.image }}
+      git_sha:
+        description: "Short git SHA used as tag"
+        value: ${{ jobs.build.outputs.git_sha }}
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+jobs:
+  build:
+    name: Build and scan ${{ inputs.image_name }}
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      git_sha: ${{ steps.meta.outputs.git_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          SHA="$(git rev-parse --short=12 HEAD)"
+          IMAGE="${{ inputs.region }}-docker.pkg.dev/${{ inputs.project_id }}/${{ inputs.repository }}/${{ inputs.image_name }}:${SHA}"
+          echo "git_sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "Building ${IMAGE}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (load locally for scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          load: true
+          tags: ${{ steps.meta.outputs.image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Authenticate to Google Cloud (WIF)
+        if: inputs.push
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ inputs.workload_identity_provider }}
+          service_account: ${{ inputs.service_account }}
+          token_format: access_token
+
+      - name: Set up gcloud
+        if: inputs.push
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        if: inputs.push
+        run: gcloud auth configure-docker "${{ inputs.region }}-docker.pkg.dev" --quiet
+
+      - name: Push image
+        if: inputs.push
+        run: docker push "${{ steps.meta.outputs.image }}"

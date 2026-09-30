@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: backend
+data:
+  ADDR: ":8080"
+  APP_VERSION: "0.1.0"
+  DB_PORT: "5432"
+  DB_NAME: "myapp"
+  DB_USER: "myapp"
+  DB_SSLMODE: "require"
+  # DB_HOST set per-environment overlay from terraform output cloudsql_private_ip
+  DB_HOST: "REPLACE_CLOUDSQL_PRIVATE_IP"
+  CORS_ORIGIN: "*"

@@ -1,0 +1,40 @@
+# Copy to terraform.tfvars and replace with your real values.
+# DO NOT commit terraform.tfvars if it contains sensitive org-specific data you want private.
+# This file contains no secrets — only identifiers.
+
+shared_project_id = "myapp-shared"
+region            = "us-central1"
+
+# Must be globally unique across all of GCS.
+state_bucket_name     = "myapp-shared-tfstate"
+state_bucket_location = "us-central1"
+
+app_name = "myapp"
+
+github_organization    = "my-org"
+github_terraform_repo  = "my-org/myapp-terraform"
+github_application_repo = "my-org/myapp-application"
+github_gitops_repo     = "my-org/myapp-gitops"
+
+environments = {
+  dev = {
+    project_id = "myapp-dev"
+  }
+  stage = {
+    project_id = "myapp-stage"
+  }
+  prod = {
+    project_id = "myapp-prod"
+  }
+}
+
+# Optional break-glass access to Terraform state (user: or group:).
+break_glass_members = [
+  # "group:gcp-sre-breakglass@example.com",
+]
+
+enable_apis_on_environment_projects = true
+
+labels = {
+  team = "platform"
+}

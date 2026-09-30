@@ -1,0 +1,11 @@
+# After the first successful bootstrap apply with local state:
+# 1. Copy this file to backend.tf
+# 2. Set bucket to the value of: terraform output -raw state_bucket_name
+# 3. Run: terraform init -migrate-state
+#
+# terraform {
+#   backend "gcs" {
+#     bucket = "myapp-shared-tfstate"
+#     prefix = "bootstrap"
+#   }
+# }
